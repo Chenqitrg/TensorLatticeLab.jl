@@ -214,9 +214,11 @@ spacetype(op), sectortype(op), scalartype(op)
 geo = lattice_geometry(op)
 ```
 
-The operator stores `tube::TubeGraph` and its `coloring`. The operator space contains only the upper and lower tube legs. Spaces and traits are derived;
-`scalartype` promotes the scalar types of the bound tensors. Construction and
-queries use space metadata without copying or contracting tensor data.
+The operator stores its tube and coloring. The leading type parameters
+`TransferOperator{E,S,M,N}` record the promoted scalar type, elementary space
+type, and numbers of physical output and input legs. For example,
+`sectortype(typeof(op))` returns `sectortype(S)` directly from the type.
+The boundary spaces in `space(op)` come from the colored tube.
 `lattice_geometry(op)` forwards to the reference geometry of its graph and
 requires the same unit-square gluing assumptions as `lattice_geometry(G)`.
 For a Drinfeld-center sector `a`, prepare its action once and supply a state

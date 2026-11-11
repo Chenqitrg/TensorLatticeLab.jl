@@ -146,6 +146,8 @@ include("action_references.jl")
     @test completed[:state] === ψ
     @test evaluate(G, completed; method=:planar, opt=true) ≈ direct(ψ)
     @test prepare_action(G, completed; state_name=:state)(2ψ) ≈ 2reference
+    @test prepare_action(G, (; A=a, B=b, gamma); state_name=:state)(ψ) ≈ reference
+    @test prepare_action(tube, (; A=a, B=b, gamma=by_space))(ψ) ≈ reference
     @test prepare_action(G, (; A=a, B=b, gamma=direct.coloring[:gamma]); state_name=:state)(ψ) ≈ reference
     @test prepare_action(tube, lattice, X, gamma)(ψ) ≈ reference
     @test_throws SpaceMismatch prepare_action(G, completed; state_name=:state, state_space=V ← X)

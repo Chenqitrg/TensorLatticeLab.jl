@@ -14,6 +14,10 @@
     @test spacetype(op) === ComplexSpace
     @test sectortype(op) === Trivial
     @test scalartype(op) === ComplexF64
+    @test op isa TransferOperator{ComplexF64,ComplexSpace,2,2}
+    @test scalartype(typeof(op)) === ComplexF64
+    @test spacetype(typeof(op)) === ComplexSpace
+    @test (numout(typeof(op)), numin(typeof(op)), numind(typeof(op))) == (2, 2, 4)
     @test lattice_geometry(op).space_period == lattice_geometry(row_graph(2)).space_period
     @test lattice_geometry(op).time_period == lattice_geometry(row_graph(2)).time_period
     @test !applicable(op, a)
@@ -42,10 +46,14 @@
     @tube annular=() symmetric[w; e] := A[w; e]
     symmetric_op = TransferOperator(symmetric, coloring(symmetric, A => t))
     @test sectortype(symmetric_op) === sectortype(V)
+    @test (@inferred sectortype(typeof(symmetric_op))) === U1Irrep
+    @test sectortype(TransferOperator{ComplexF64,typeof(V),1,1}) === U1Irrep
     @test domain(symmetric_op) == codomain(symmetric_op) == ProductSpace(V)
 
     @tube annular=(i,) closed[] := A[i; i]
     closed_op = TransferOperator(closed, coloring(closed, A => t))
     @test numind(closed_op) == 0
+    @test closed_op isa TransferOperator{ComplexF64,typeof(V),0,0}
+    @test sectortype(typeof(closed_op)) === U1Irrep
     @test domain(closed_op) == codomain(closed_op) == ProductSpace{typeof(V)}(())
 end

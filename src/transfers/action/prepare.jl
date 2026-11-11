@@ -56,8 +56,14 @@ function prepare_action(graph::TensorGraph, c::Coloring; gamma=nothing,
     return PreparedAction(graph, fixed, plan)
 end
 
-prepare_action(g::TensorGraph, bindings::NamedTuple; kwargs...) =
-    prepare_action(g, Coloring(bindings); kwargs...)
+function prepare_action(g::Union{TubeGraph,TensorGraph}, bindings::NamedTuple; gamma=nothing, kwargs...)
+    if haskey(bindings, :gamma) && !(bindings.gamma isa TensorGraphLab.TensorBinding)
+        isnothing(gamma) || throw(ArgumentError("gamma was supplied twice"))
+        gamma = bindings.gamma
+        bindings = Base.structdiff(bindings, NamedTuple{(:gamma,)})
+    end
+    return prepare_action(g, Coloring(bindings); gamma, kwargs...)
+end
 
 """
     prepare_action(tube::TubeGraph, bindings; gamma, state_space, state_name=:ψ)
@@ -81,9 +87,6 @@ function prepare_action(tube::TubeGraph, c::Coloring; state_name::Symbol=:ψ,
     return prepare_action(graph, c; gamma, state_space, state_name)
 end
 
-prepare_action(tube::TubeGraph, bindings::NamedTuple; kwargs...) =
-    prepare_action(tube, Coloring(bindings); kwargs...)
-
 function prepare_action(tube::TubeGraph, c::Coloring, X::ElementarySpace, gamma)
     W = space(tube, c)
     typeof(X) === spacetype(W) || throw(SpaceMismatch("charge and tube space types differ"))
@@ -91,7 +94,7 @@ function prepare_action(tube::TubeGraph, c::Coloring, X::ElementarySpace, gamma)
 end
 
 function prepare_action(tube::TubeGraph, c::Coloring, anyon::Sector)
-    BoundaryBulkKit.base_sector(anyon) === sectortype(space(tube,c)) ||
+    BoundaryBulkKit.base_sector(anyon) === sectortype(c) ||
         throw(ArgumentError("anyon and tube have different underlying sectors"))
     return prepare_action(tube, c, BoundaryBulkKit.forget(anyon), V -> BoundaryBulkKit.HalfBraiding(anyon,V))
 end
