@@ -30,6 +30,9 @@ coloring, before geometry fitting, center insertion and spectrum extraction.
 - Names do not establish a numerical modular parameter or a measured area term.
   This batch must not claim to implement CFT measurement.
 
-## Deferred anyon action (2026-11-11)
+## Anyon insertion
 
-The working tree represents a static transfer operator by its tube and coloring. The public `prepare_action(op, anyon)` and Krylov/ED integration are deferred. Prepare the half-braidings and contraction for the tube's stored annular pairs once, then reuse them for each state. The shortest-cut experiment found that choosing a new cut after composition can introduce a sector-dependent twist. A future regression should compare the action of two composed diagonal tubes with two successive applications in a nontrivial sector, and check compatibility with dagger, using bounded states.
+`prepare_action(op, anyon)` contracts the tube's marked annular pairs against
+the sector state. Tests compare composition and dagger with independently
+evaluated actions in the Z3 and Fibonacci doubles. Integration with an
+eigensolver remains a separate step.

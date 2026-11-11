@@ -9,6 +9,5 @@ let
     @assert numout(action) == 4 && numin(action) == 1
     showgraph(action; name=:action)
     println("Example 5 passed: a symbolic action on X, without allocating a state.")
-    # Center-sector insertion is not implemented yet. This symbolic example
-    # does not claim to be the planar anyon action required by the eigensolver.
+    # See 06_anyon_action.jl for a sector state on a marked tube.
 end

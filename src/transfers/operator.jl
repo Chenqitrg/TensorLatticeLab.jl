@@ -7,7 +7,7 @@ Annular legs are paired within the tube. Tensor data is borrowed.
 
 Construction validates all bindings and ordered boundary spaces without
 contracting or transforming tensor data. Equal dimensions alone are insufficient.
-Only static queries are implemented; the operator is not yet callable.
+Use `prepare_action(op, anyon)` to obtain the callable map in a center sector.
 """
 struct TransferOperator{T<:TubeGraph,C<:TensorGraphLab.Coloring}
     tube::T

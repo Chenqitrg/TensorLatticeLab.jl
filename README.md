@@ -4,9 +4,9 @@ Periodic 2D tensor cells, transfer graphs and reference lattice geometry, built 
 [TensorGraphLab](https://github.com/Chenqitrg/TensorGraphLab.jl).
 
 **Current scope:** tensor-cell types and constructors, local leg operations,
-CDL tensors, graph constructors, static transfer operators, unit-square lattice
+CDL tensors, graph constructors, sector-resolved transfer actions, unit-square lattice
 geometry and A/B coloring.
-Model libraries, physical geometry fitting, Drinfeld-center insertion, Krylov iteration and
+Model libraries, physical geometry fitting, Krylov iteration and
 `CFTSpectrum` are not implemented yet. There is no `measure` entry point in this
 first review batch.
 
@@ -219,7 +219,41 @@ The operator stores `tube::TubeGraph` and its `coloring`. The operator space con
 queries use space metadata without copying or contracting tensor data.
 `lattice_geometry(op)` forwards to the reference geometry of its graph and
 requires the same unit-square gluing assumptions as `lattice_geometry(G)`.
-Operator action and diagonalization are not implemented yet.
+For a Drinfeld-center sector `a`, prepare its action once and supply a state
+`ψ : forget(a) → domain(op)` on each application:
+
+```julia
+apply = prepare_action(op, a)
+showgraph(apply.graph)
+next_state = apply(ψ)
+```
+
+For the same action starting from a graph, pass its fixed lattice colors and
+the positive half-braiding. The callable is evaluated once per distinct
+oriented annular space during preparation.
+
+```julia
+G = action_graph(op.tube)
+gamma(V) = BoundaryBulkKit.HalfBraiding(a, V)
+apply = prepare_action(G, op.coloring; gamma)
+next_state = apply(ψ)
+bindings = coloring(apply, ψ)
+```
+
+You can also pass a concrete half-braiding, a tuple in annular order or a
+dictionary keyed by space. For example, `prepare_action(G, (; A, B, gamma=(h1,h2)))`
+prepares a graph with two crossings. A tube plus its coloring is also accepted
+directly as `prepare_action(op.tube, op.coloring, a)`.
+The field `apply.coloring` contains the fixed named bindings. Each call adds
+the current state and passes the completed coloring to `apply.plan`.
+
+The action implements the left partial trace in
+[Eq. (29)](https://arxiv.org/pdf/2610.08787#page=17). Every crossing is
+printed as `gamma'`. Coloring resolves the positive half-braiding at the
+oriented annular space of each occurrence. Contraction planning treats all
+segments of the charge line as O(1) at fixed sector. The lattice tensors,
+half-braidings and contraction function are reused across applications.
+See [the bounded example](examples/06_anyon_action.jl) for direct graph evaluation.
 
 ## Memory and examples
 
@@ -245,8 +279,8 @@ package relative to its own directory:
    inspect four graph orientations.
 4. [`04_coloring.jl`](examples/04_coloring.jl): validate A/B bindings using
    one-entry tensors.
-5. [`05_state_graph.jl`](examples/05_state_graph.jl): compose a symbolic action
-   on X, without allocating X. This is not yet an anyon-inserted planar action.
+5. [`05_state_graph.jl`](examples/05_state_graph.jl) composes a symbolic action on X.
+6. [`06_anyon_action.jl`](examples/06_anyon_action.jl) evaluates a small center-sector action.
 6. [`06_lattice_geometry.jl`](examples/06_lattice_geometry.jl): infer periods,
    area, circumference, height, relative shift and tau from five graph constructions.
 7. [`07_tensor_cells.jl`](examples/07_tensor_cells.jl): construct periodic cells

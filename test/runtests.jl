@@ -11,6 +11,7 @@ include("cells/show.jl")
 include("transfers/graphs.jl")
 include("transfers/coloring.jl")
 include("transfers/operator.jl")
+include("transfers/action.jl")
 
 include("geometry/types.jl")
 include("geometry/inference.jl")
