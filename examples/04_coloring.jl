@@ -8,11 +8,11 @@ let
     a = TensorMap(ones(ComplexF64, 1, 1), V ⊗ V ← V ⊗ V)
     b = 2a
     graph = diagonal_4()
-    bindings = coloring(graph, (a, b))
+    bindings = checkerboard_coloring(graph, (a, b))
     @assert bindings[:A] === a
     @assert bindings[:B] === b
     @assert isnothing(TensorGraphLab.validate(graph, bindings))
-    uniform = coloring(graph, a)
+    uniform = checkerboard_coloring(graph, a)
     @assert uniform[:A] === uniform[:B] === a
     println("Example 4 passed: default A/B bindings, without contraction.")
 end

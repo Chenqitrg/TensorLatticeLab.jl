@@ -1,33 +1,36 @@
 """
-    coloring(graph, tensor::AbstractTensorMap)
-    coloring(graph, (tensorA, tensorB))
+    checkerboard_coloring(graph, (black, white))
+    checkerboard_coloring(graph, tensor)
+    checkerboard_coloring(graph, cell)
 
-Bind standard colors A/B without contraction. Bindings borrow the original
-tensors; validation may temporarily transform node views and allocate copies.
-A single tensor supplies both colors. A pair supplies A then B. Only colors
-present in the graph are bound. For other color names or other unit cells, use
-TensorGraphLab's explicit `coloring(graph, :name => tensor, ...)` interface.
-Rank, duality and connected numerical spaces are checked by TensorGraphLab.
+Bind the A/B sites of a checkerboard. Each site is a square gate and each
+internal bond joins opposite colors. For a tube this includes the annular
+closure. The upper and lower boundaries stay open.
 """
-coloring(g::TensorGraph, t::AbstractTensorMap) = coloring(g, (t, t))
-
-function coloring(g::TensorGraph, tensors::Tuple{AbstractTensorMap,AbstractTensorMap})
-    names = unique(label(base_node(term.object)) for term in occurrences(expand(g)))
-    all(name -> name in (:A, :B), names) ||
-        throw(ArgumentError("default coloring supports only A/B; provide explicit bindings for other colors"))
-    bindings = map(names) do name
-        name => tensors[name === :A ? 1 : 2]
+function checkerboard_coloring(g::Union{TensorGraph,TubeGraph}, tensors::Tuple{AbstractTensorMap,AbstractTensorMap})
+    graph = g isa TubeGraph ? closed_graph(g) : g
+    flat = TensorGraphLab._suppress_wires(expand(graph))
+    sites = Set{Symbol}()
+    neighbors = Dict{Int,Tuple{Symbol,NTuple{2,Int}}}()
+    for term in occurrences(flat)
+        node = base_node(term.object)
+        node isa TensorNode{2,2} || throw(ArgumentError("checkerboard sites must be square gates"))
+        name = label(node)
+        name in (:A, :B) || throw(ArgumentError("expected checkerboard labels A and B, found $name"))
+        push!(sites, name)
+        for (index, side) in zip(term.indices, _square_side_normals(term.object))
+            if haskey(neighbors, index)
+                other_name, other_side = neighbors[index]
+                name != other_name || throw(ArgumentError("checkerboard bond $index connects two $name sites"))
+                side == .-other_side || throw(ArgumentError("checkerboard bond $index must join opposite square sides"))
+            else
+                neighbors[index] = (name, side)
+            end
+        end
     end
-    return coloring(g, bindings...)
+    return coloring(g, (name => tensors[i] for (i, name) in enumerate((:A, :B)) if name in sites)...)
 end
 
-"""
-    coloring(graph, cell::Union{UniformGates,CheckerboardGates})
-
-Bind a uniform cell to both A/B colors, or bind a checkerboard's black and
-white tensors to A and B respectively. No contraction is performed.
-Plaquette cells require an explicit color assignment.
-"""
-coloring(graph::TensorGraph, cell::UniformGates) = coloring(graph, cell.gate)
-coloring(graph::TensorGraph, cell::CheckerboardGates) =
-    coloring(graph, (cell.black, cell.white))
+checkerboard_coloring(g::Union{TensorGraph,TubeGraph}, t::AbstractTensorMap) = checkerboard_coloring(g, (t, t))
+checkerboard_coloring(g::Union{TensorGraph,TubeGraph}, c::UniformGates) = checkerboard_coloring(g, c.gate)
+checkerboard_coloring(g::Union{TensorGraph,TubeGraph}, c::CheckerboardGates) = checkerboard_coloring(g, (c.black, c.white))

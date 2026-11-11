@@ -15,7 +15,7 @@ end
 """
     row_graph(width; layers=1, shift=0, A, B)
 
-Construct an untruncated, horizontally periodic row transfer. `width` is even;
+Construct a horizontally periodic row as a planar-cut TubeGraph. `width` is even;
 `layers` is positive. A gate at column `j`, layer `k` has ports
 `[left up; down right]` and color A when `j+k` is even, B otherwise.
 Layers are numbered from the input boundary. The top of column `j` exits at
@@ -48,16 +48,19 @@ function row_graph(width::Int; layers::Int=1, shift::Int=0, A=TensorNode(:A, (2,
         end
         previous = next
     end
-    return TensorGraph(Tuple(terms), outputs, inputs)
+    cuts = [(Symbol(:h, k, :_, width), ((k-1)*width+1, 1)) for k in 1:layers]
+    return _transfer_tube(TensorGraph(Tuple(terms), outputs, inputs), cuts, _square_shift(shift, width))
 end
 
 """
     diagonal_graph(width; shift=0, A, B)
 
-Construct a periodic two-layer brickwork transfer with an even number of
+Construct a two-layer brickwork TubeGraph with an even number of
 boundary legs. B acts on input pairs (1,2), (3,4), ...; A then acts on
 (2,3), (4,5), ..., (width,1). `shift` cyclically moves the output boundary,
-using the same sign convention as `row_graph`. No coarse graining is performed.
+using the same sign convention as `row_graph`. At zero shift, the first middle
+wire crosses the cut into the staggered A layer and an identity carries its
+last output back to physical output 1.
 """
 function diagonal_graph(width::Int; shift::Int=0, A=TensorNode(:A, (2, 2)), B=TensorNode(:B, (2, 2)))
     _check_width(width)
@@ -75,7 +78,9 @@ function diagonal_graph(width::Int; shift::Int=0, A=TensorNode(:A, (2, 2)), B=Te
     for j in 1:2:width
         push!(terms, Occurrence(B, (middle[j], middle[j+1]), (inputs[j], inputs[j+1])))
     end
-    return TensorGraph(Tuple(terms), outputs, inputs)
+    # B's first output enters the last A across the annular seam.
+    cuts = [(middle[1], (width ÷ 2 + 1, 1))]
+    return _transfer_tube(TensorGraph(Tuple(terms), outputs, inputs), cuts, 1 + _square_shift(shift, width))
 end
 
 """
@@ -117,5 +122,5 @@ function tilted_4(; A=TensorNode(:A, (2, 2)), B=TensorNode(:B, (2, 2)))
     @graph g[o1 o2 o3 o4; p1 p2 p3 p4] :=
         B[o4 o1; v2 w3] * A[w3 o2; u3 p4] *
         A[o3 v2; p1 u2] * B[u2 u3; p2 p3]
-    return g
+    return _transfer_tube(g, Tuple{Symbol,Tuple{Int,Int}}[], -2)
 end

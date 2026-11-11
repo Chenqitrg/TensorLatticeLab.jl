@@ -37,8 +37,9 @@ function lattice_geometry(graph::TensorGraph)
     return LatticeGeometry(space_period, time_period, positions)
 end
 
-"""Infer reference unit-square geometry from the operator's graph."""
-lattice_geometry(op::TransferOperator) = lattice_geometry(op.graph)
+"""Glue the annular wires before inferring the unit-square periods."""
+lattice_geometry(tube::TubeGraph) = lattice_geometry(closed_graph(tube))
+lattice_geometry(op::TransferOperator) = lattice_geometry(op.tube)
 
 # Neighbor columns are right, up, left, down. Base gate ports have the different
 # order [left up; down right]; views permute this side correspondence explicitly.
@@ -85,8 +86,8 @@ function _square_adjacency(flat_graph)
         length(ports) == 2 && connect_sides!(ports[1], ports[2], 0)
     end
     outputs, inputs = boundary(flat_graph)
-    for index in eachindex(outputs)
-        connect_sides!(only(index_ports[outputs[index]]), only(index_ports[inputs[index]]), 1)
+    for i in eachindex(outputs)
+        connect_sides!(only(index_ports[outputs[i]]), only(index_ports[inputs[i]]), 1)
     end
     return (; neighbors, seam_crossings)
 end

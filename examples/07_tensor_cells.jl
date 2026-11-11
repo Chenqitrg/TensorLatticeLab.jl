@@ -12,7 +12,7 @@ let
         show(stdout, MIME"text/plain"(), cell)
         println("\n")
     end
-    bindings = coloring(diagonal_4(), checkerboard)
+    bindings = checkerboard_coloring(diagonal_4(), checkerboard)
     @assert bindings[:A] === checkerboard.black
     @assert bindings[:B] === checkerboard.white
     println("Example 7 passed: cell construction and coloring without LoopTNRLab.")

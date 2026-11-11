@@ -1,5 +1,5 @@
 using Test, TensorKit, TensorGraphLab, TensorLatticeLab
-using TensorGraphLab: occurrences, expand, boundary, dualflags
+using TensorGraphLab: occurrences, expand, boundary, dualflags, closed_graph
 
 include("cells/fixtures.jl")
 include("cells/types.jl")

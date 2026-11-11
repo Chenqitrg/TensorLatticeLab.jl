@@ -4,12 +4,12 @@ using TensorKit, TensorGraphLab, TensorLatticeLab
 let
     # Single-entry tensors suffice for inspecting the operator's static properties.
     a = ones(ComplexF64, ℂ^1 ⊗ ℂ^1 ← ℂ^1 ⊗ ℂ^1)
-    graph = diagonal_4()
-    bindings = coloring(graph, (a, 2a))
-    op = TransferOperator(graph, bindings)
+    tube = diagonal_2()
+    bindings = checkerboard_coloring(tube, (a, 2a))
+    op = TransferOperator(tube, bindings)
 
     @assert domain(op) == codomain(op)
-    @assert numin(op) == numout(op) == 4
+    @assert numin(op) == numout(op) == 2
     @assert sectortype(op) === Trivial
     @assert scalartype(op) === ComplexF64
     @assert !applicable(op, a)

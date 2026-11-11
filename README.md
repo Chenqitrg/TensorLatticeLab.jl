@@ -52,7 +52,7 @@ re-export the cell API.
 ## Inspect a transfer graph
 
 ```julia
-using TensorGraphLab, TensorLatticeLab
+using TensorKit, TensorGraphLab, TensorLatticeLab
 
 G = diagonal_4()
 showgraph(G; name=:transfer)
@@ -64,17 +64,15 @@ This is the same graph as:
 A = TensorNode(:A, (2, 2))
 B = TensorNode(:B, (2, 2))
 
-@graph transfer[o1 o2 o3 o4; p1 p2 p3 p4] :=
-    A[o2 o3; i2 i3] * A[o4 o1; i4 i1] *
-    B[i1 i2; p1 p2] * B[i3 i4; p3 p4]
+@tube annular=(i1, r) transfer[o1 o2 o3 o4; p1 p2 p3 p4] :=
+    A[o2 o3; i2 i3] * A[o4 r; i4 i1] *
+    B[i1 i2; p1 p2] * B[i3 i4; p3 p4] * id[o1; r]
 
 @assert G == transfer
 ```
 
 The nodes retain formal leg orientation and color labels, with no tensor data,
-dimensions or sectors. Each constructor returns an ordinary `TensorGraph`.
-You can compose it in another `@graph`, inspect it with `showgraph`, or replace
-its colors with `substitute`. There is no separate shape-tagged transfer type.
+dimensions or sectors. Each transfer constructor returns a `TubeGraph`. Inspect its open planar representative with `open_graph(G)`. For ordinary graph composition, `TensorGraphLab.closed_graph(G)` glues the annular pairs and removes identity wires.
 
 ## Available graphs
 
@@ -188,11 +186,10 @@ spatial cut are rejected. See [the derivation](docs/lattice-geometry.md) and
 # a and b are existing rank-(2,2) TensorMaps.
 A, B = TensorNode(:A, a), TensorNode(:B, b)
 G = diagonal_4(; A, B)
-bindings = coloring(G, (a, b))
+bindings = checkerboard_coloring(G, (a, b))
 ```
 
-`coloring(G, a)` binds both standard colors to the same tensor. Only labels
-present in G are bound. TensorGraphLab checks ranks, directions and connected
+`checkerboard_coloring(G, a)` binds both standard colors to the same tensor. The function first checks that every internal bond, including annular closure, joins opposite A/B sites. Upper and lower legs stay open. TensorGraphLab checks ranks, directions and connected
 spaces. For other assignments, use explicit bindings such as
 `coloring(G, :A => a, :B => b)`.
 
@@ -200,7 +197,7 @@ Bindings retain the original tensors. Validation uses TensorKit space metadata,
 including for rotated node views, without transforming tensor data or
 materializing the transfer tensor.
 
-`coloring(G, cell)` directly accepts `UniformGates` and
+`checkerboard_coloring(G, cell)` directly accepts `UniformGates` and
 `CheckerboardGates`. The latter maps `black` to A and `white` to B. There is no
 default mapping for `PlaquetteGates` or four independent tensors; write the
 desired graph and explicit color assignment for those cases.
@@ -208,7 +205,8 @@ desired graph and explicit color assignment for those cases.
 ## Inspect a transfer operator
 
 ```julia
-op = TransferOperator(G, bindings)
+tube = diagonal_2()
+op = TransferOperator(tube, checkerboard_coloring(tube, (a, b)))
 domain(op) == codomain(op)  # Required by construction, not just equal dimensions.
 space(op)                 # TensorKit map space, with the graph's boundary order.
 numout(op), numin(op), numind(op)
@@ -216,7 +214,7 @@ spacetype(op), sectortype(op), scalartype(op)
 geo = lattice_geometry(op)
 ```
 
-The operator stores only `graph` and `coloring`. Spaces and traits are derived;
+The operator stores `tube::TubeGraph` and its `coloring`. The operator space contains only the upper and lower tube legs. Spaces and traits are derived;
 `scalartype` promotes the scalar types of the bound tensors. Construction and
 queries use space metadata without copying or contracting tensor data.
 `lattice_geometry(op)` forwards to the reference geometry of its graph and
@@ -239,7 +237,7 @@ numerical spectrum validation is claimed.
 Open any of these files in VS Code and run it in full; each activates the
 package relative to its own directory:
 
-1. [`01_diagonal_graph.jl`](examples/01_diagonal_graph.jl): explicit `@graph`
+1. [`01_diagonal_graph.jl`](examples/01_diagonal_graph.jl): explicit `@tube`
    compared with `diagonal_4()`.
 2. [`02_shifted_row.jl`](examples/02_shifted_row.jl): shifted four- and eight-leg
    rows, with no numerical contraction.

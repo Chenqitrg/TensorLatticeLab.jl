@@ -25,7 +25,7 @@
     # An exact fraction that has no finite binary floating-point representation.
     @test lattice_geometry(row_graph(6; shift=1)).relative_shift === -1//6
     A, B = TensorNode(:A, (2, 2)), TensorNode(:B, (2, 2))
-    g = diagonal_4()
+    g = closed_graph(diagonal_4())
     @test lattice_geometry(substitute(g, A=>B, B=>A)).space_period == lattice_geometry(g).space_period
     @test lattice_geometry(substitute(g, A=>B, B=>A)).time_period == lattice_geometry(g).time_period
 
@@ -37,7 +37,7 @@
     # Adjoint reverses the cut direction without moving the base square sides.
     # Positive orientation reverses both periods, leaving their ratio unchanged.
     original = lattice_geometry(shifted_row_4())
-    reversed = lattice_geometry(shifted_row_4()')
+    reversed = lattice_geometry(closed_graph(shifted_row_4())')
     @test reversed.space_period == .-original.space_period
     @test reversed.time_period == .-original.time_period
     @test reversed.modular_parameter ≈ original.modular_parameter
@@ -70,7 +70,7 @@ end
         A[h2 o; v31 h1] * A[h1 v24; v42 h2] *
         A[h4 v31; p h3] * A[h3 v42; v24 h4]
     @test_throws ArgumentError lattice_geometry(broken_cut)
-    g = shifted_row_2()
+    g = closed_graph(shifted_row_2())
     @graph disconnected[o1 o2 o3 o4; p1 p2 p3 p4] :=
         g[o1 o2; p1 p2] * g[o3 o4; p3 p4]
     @test_throws ArgumentError lattice_geometry(disconnected)
