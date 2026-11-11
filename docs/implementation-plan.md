@@ -29,3 +29,7 @@ coloring, before geometry fitting, center insertion and spectrum extraction.
   TensorKit space checks, including dual directions.
 - Names do not establish a numerical modular parameter or a measured area term.
   This batch must not claim to implement CFT measurement.
+
+## Deferred anyon action (2026-11-11)
+
+The working tree represents a static transfer operator by its tube and coloring. The public `prepare_action(op, anyon)` and Krylov/ED integration are deferred. Prepare the half-braidings and contraction for the tube's stored annular pairs once, then reuse them for each state. The shortest-cut experiment found that choosing a new cut after composition can introduce a sector-dependent twist. A future regression should compare the action of two composed diagonal tubes with two successive applications in a nontrivial sector, and check compatibility with dagger, using bounded states.
