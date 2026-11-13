@@ -34,5 +34,4 @@ coloring, before geometry fitting, center insertion and spectrum extraction.
 
 `prepare_action(op, anyon)` contracts the tube's marked annular pairs against
 the sector state. Tests compare composition and dagger with independently
-evaluated actions in the Z3 and Fibonacci doubles. Integration with an
-eigensolver remains a separate step.
+evaluated actions in the Z3 and Fibonacci doubles. The ED layer in `src/ED/` reuses this action with KrylovKit and an ExperimentLab configuration.

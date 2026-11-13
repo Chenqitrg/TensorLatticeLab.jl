@@ -5,7 +5,10 @@ struct TransferRepresentation{S<:CentralTensorMapSpace,P,T}
     scalar::Type{T}
 end
 
-function prepare_action(op::TransferOperator{E,B}, S::CentralTensorMapSpace{<:ProductSpace{B}}) where {E,B}
+# B distinguishes physical leg spaces even when they share a sector (e.g. ℝ and ℂ).
+const CentralSpaceOn{B} = CentralTensorMapSpace{I,C,N,<:ProductSpace{B}} where {I<:Sector,C<:DrinfeldCenter{I},N}
+
+function prepare_action(op::TransferOperator{E,B}, S::CentralSpaceOn{B}) where {E,B}
     codomain(S) == domain(op) || throw(SpaceMismatch("central state has the wrong physical legs"))
     plans = Dict(a => (prepare_action(op.tube, op.coloring, a),
                        domain(op) ← transfer_charge_space(spacetype(op), a)) for a in blocksectors(S))
@@ -23,7 +26,7 @@ prepare_action(op::SectorTransferOperator{I}, V::GradedSpace{C}) where {I<:Secto
 prepare_action(op::SectorTransferOperator{I}, a::C) where {I<:Sector,C<:DrinfeldCenter{I}} =
     prepare_action(op, Vect[C](a=>1))
 # B is the elementary space of the central map's physical output legs.
-const CentralMapOn{B} = CentralTensorMap{T,A,S} where {T,A,S<:CentralTensorMapSpace{<:ProductSpace{B}}}
+const CentralMapOn{B} = CentralTensorMap{T,A,S} where {T,A,S<:CentralSpaceOn{B}}
 
 prepare_action(op::TransferOperator{E,B}, U::CentralMapOn{B}) where {E,B} = prepare_action(op, space(U))
 (op::TransferOperator{E,B})(U::CentralMapOn{B}) where {E,B} = prepare_action(op, U)(U)

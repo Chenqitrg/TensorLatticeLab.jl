@@ -5,12 +5,12 @@ Periodic 2D tensor cells, transfer graphs and reference lattice geometry, built 
 
 **Current scope:** tensor-cell types and constructors, local leg operations,
 CDL tensors, graph constructors, sector-resolved transfer actions, unit-square lattice
-geometry and A/B coloring.
-Model libraries, physical geometry fitting, Krylov iteration and
+geometry, A/B coloring and sector-resolved transfer diagonalization.
+Model libraries, physical geometry fitting and
 `CFTSpectrum` are not implemented yet. There is no `measure` entry point in this
 first review batch.
 
-TensorLatticeLab has no dependency on LoopTNRLab, PMPSLab or ExperimentLab.
+ExperimentLab provides the algorithm configuration interface for diagonalization.
 Cells can represent UV tensors or renormalized tensors; no fixed-point
 assumption is imposed. LoopTNRLab depends on this package for its input cells.
 
@@ -21,8 +21,7 @@ assumption is imposed. LoopTNRLab depends on this package for its input cells.
 - `src/transfers/`: transfer graph constructors, tensor coloring and static operators.
 - `src/geometry/`: lattice geometry types and inference from graph connections.
 
-The tests follow the same directory structure. Diagonalization will be added
-under `src/ED/` when implemented; that directory does not exist yet.
+- `src/ED/`: transfer-matrix algorithm configurations and matrix-free Arnoldi diagonalization.
 
 ## Construct a tensor cell
 
@@ -259,18 +258,56 @@ segments of the charge line as O(1) at fixed sector. The lattice tensors,
 half-braidings and contraction function are reused across applications.
 See [the bounded example](examples/06_anyon_action.jl) for direct graph evaluation.
 
+## Diagonalize a transfer operator
+
+Use the transfer operator, requested center space and solver configuration together.
+
+```julia
+C = BoundaryBulkKit.take_center(sectortype(op))
+levels = Vect[C](one(C)=>1, a=>3)
+cfg = TransferMatrixConfig(which=:LM,
+    solver=TransferArnoldi(tol=1e-10, kwargs=(; eager=true)))
+spec = eigsolve(op, levels, cfg; rightstates=Dict(one(C) => [1], a => [2, 3]))
+λ = block(spec.D, a).diag
+ψ = rightstate(spec, a, 2)
+```
+
+Here `a` is a nontrivial sector of `C`. Its multiplicity requests three leading
+eigenvalues by magnitude. A zero or omitted multiplicity skips the sector,
+including the trivial sector. Use `Vect[C](one(C)=>1)` to request only its
+leading eigenvalue, or `Vect[C]()` to skip all solves.
+Choose right eigenvectors with the optional `rightstates` keyword:
+
+| Selection | Retained right eigenvectors |
+| --- | --- |
+| `0` (default) | None. Eigenvalues and convergence reports are returned. |
+| `:all` | Every requested level in every sector. |
+| `N` | Levels 1 through `min(N, dim(levels, a))` in each requested sector. |
+| `Dict(a => [2, 3], b => [1])` | Levels 2 and 3 in sector `a` and level 1 in sector `b`. Other sectors retain none. |
+
+Explicit indices must lie within the requested levels in their sector. The
+dictionary uses the original one-based eigenvalue order, as does `rightstate`.
+In the example, `rightstate(spec, a, 2)` reads column 1 of `block(spec.U, a)`.
+When right states are retained, `U` is a `CentralTensorMap` with one bulk leg
+in the requested orientation. Its boundary sector is `I = sectortype(op)` and
+its center sector type is `C <: DrinfeldCenter{I}`. The default largest-magnitude
+solve uses the Schur route when no extra KrylovKit keywords are supplied.
+Single-start Arnoldi can miss multiplicities of exactly degenerate eigenvalues.
+Infeasible counts and insufficient convergence raise errors.
+
+Use `ExperimentLab.configtree(cfg)` to inspect the configuration and `@config`
+to construct it as a tree. `ExperimentLab.writeconfig(path, cfg)` saves the
+solver settings and the random seed. Restore them
+with `ExperimentLab.readconfig(path, TransferMatrixConfig)` and pass the
+desired sector space and right-state selection to each call to `eigsolve`.
+
 ## Memory and examples
 
 Do **not** materialize a complete transfer tensor to try these graphs on
 production data. With `w` legs on each boundary and uniform bond dimension D,
 an unconstrained dense transfer requires D^(2w) entries. Even an action on a
-state can have large intermediates; the later iterative implementation must
-control contraction order and state dimensions.
-
-This batch's tests compare symbolic graph structure, including a nested
-graph-times-state expression for the tilted auxiliary. They never evaluate a
-transfer tensor. Coloring checks use one-entry tensor fixtures only. No
-numerical spectrum validation is claimed.
+state can have large intermediates. Spectrum tests use small sector state
+spaces, known eigenvalues and independently checked right-state residuals.
 
 Open any of these files in VS Code and run it in full; each activates the
 package relative to its own directory:
@@ -292,8 +329,9 @@ package relative to its own directory:
 8. [`08_transfer_operator.jl`](examples/08_transfer_operator.jl): inspect boundary
    spaces, tensor traits and reference geometry without applying the operator.
 
-The development environment expects TensorGraphLab in the sibling directory
-`../TensorGraphLab.jl`, as specified in `Project.toml`. Run tests with
+9. [`09_transfer_spectrum.jl`](examples/09_transfer_spectrum.jl) runs a small ED configuration and checks a right eigenstate.
+
+The development environment uses the sibling checkouts specified in `Project.toml`. Run tests with
 `julia --project=. -e 'using Pkg; Pkg.test()'` to include test dependencies.
 
 ## Reference conventions

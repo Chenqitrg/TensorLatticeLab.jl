@@ -4,16 +4,23 @@ version = "0.1.0"
 
 [deps]
 BoundaryBulkKit = "13c682a8-1356-4ba9-a9ff-98b003f00f25"
+Configurations = "5218b696-f38b-4ac9-8b61-a12ec717816d"
+ExperimentLab = "29f77e63-5c80-4c5a-8fc3-cbf639322b6d"
+KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 TensorGraphLab = "ae7ca4d3-94b6-49b0-abf7-1c86f4018385"
 TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 
 [sources]
+ExperimentLab = {path = "../ExperimentLab"}
 BoundaryBulkKit = {path = "../BoundaryBulkKit-center-protocol"}
 TensorGraphLab = {path = "../TensorGraphLab.jl"}
 
 [compat]
 BoundaryBulkKit = "0.1"
+Configurations = "0.17"
+ExperimentLab = "0.1"
+KrylovKit = "0.10"
 Random = "1.11"
 CategoryData = "0.4"
 TensorGraphLab = "0.1"

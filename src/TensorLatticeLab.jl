@@ -1,6 +1,10 @@
 module TensorLatticeLab
 
 using TensorKit
+import Configurations
+import ExperimentLab
+import KrylovKit
+using KrylovKit: eigsolve
 import Random
 import BoundaryBulkKit
 using BoundaryBulkKit: DrinfeldCenter, CentralTensorMap, CentralTensorMapSpace
@@ -37,6 +41,12 @@ include("transfers/action/graph.jl")
 include("transfers/action/bindings.jl")
 include("transfers/action/prepare.jl")
 include("transfers/action/central.jl")
+
+export TransferMatrixConfig, TransferArnoldi, eigsolve, rightstate
+include("ED/config.jl")
+include("ED/config_io.jl")
+include("ED/eigsolve.jl")
+include("ED/spectrum.jl")
 
 # Reference lattice geometry inferred from graph connections.
 export LatticeGeometry, lattice_geometry
