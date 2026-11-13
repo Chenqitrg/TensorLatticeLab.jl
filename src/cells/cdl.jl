@@ -34,9 +34,9 @@ function cdl_tensor(
     fn = unitary(scalartype(raw), north, fuse(north))
     fe = unitary(scalartype(raw), east, fuse(east))
     # Fuse one pair at a time without forming tensor products of fusion maps.
-    @plansor order=(w1, w2, s1, s2, n1, n2, e1, e2) result[w s; n e] :=
-        fw'[w; w1 w2] * fs'[s; s1 s2] *
-        raw[w1 w2 s1 s2; n1 n2 e1 e2] * fn[n1 n2; n] * fe[e1 e2; e]
+    @plansor result[w s; n e] :=
+        ((fs'[s; s1 s2] * (fw'[w; w1 w2] * raw[w1 w2 s1 s2; n1 n2 e1 e2])) *
+         fn[n1 n2; n]) * fe[e1 e2; e]
     return result
 end
 
