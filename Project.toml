@@ -9,7 +9,7 @@ TensorGraphLab = "ae7ca4d3-94b6-49b0-abf7-1c86f4018385"
 TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 
 [sources]
-BoundaryBulkKit = {path = "../tnr-reproduction-workspace/BoundaryBulkKit.jl"}
+BoundaryBulkKit = {path = "../BoundaryBulkKit-center-protocol"}
 TensorGraphLab = {path = "../TensorGraphLab.jl"}
 
 [compat]

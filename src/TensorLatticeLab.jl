@@ -3,6 +3,7 @@ module TensorLatticeLab
 using TensorKit
 import Random
 import BoundaryBulkKit
+using BoundaryBulkKit: DrinfeldCenter, CentralTensorMap, CentralTensorMapSpace
 using TensorGraphLab
 
 using TensorGraphLab: Coloring, IndexedColor, EvaluationPlan, closed_graph, dualflags
@@ -35,6 +36,7 @@ include("transfers/operator.jl")
 include("transfers/action/graph.jl")
 include("transfers/action/bindings.jl")
 include("transfers/action/prepare.jl")
+include("transfers/action/central.jl")
 
 # Reference lattice geometry inferred from graph connections.
 export LatticeGeometry, lattice_geometry

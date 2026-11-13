@@ -1,12 +1,12 @@
-"""A planar graph, its fixed color bindings, and the compiled contraction on sector states."""
-struct PreparedAction{G<:TensorGraph,C<:Coloring,P<:EvaluationPlan}
+"""Callable representation of a transfer operator on boundary states for a fixed charge line and half-braiding."""
+struct TransferIrrep{G<:TensorGraph,C<:Coloring,P<:EvaluationPlan}
     graph::G
     coloring::C
     plan::P
 end
 
 """Complete the fixed coloring with one state. The prepared bindings are shared across calls."""
-function TensorGraphLab.coloring(action::PreparedAction, ψ::AbstractTensorMap)
+function TensorGraphLab.coloring(action::TransferIrrep, ψ::AbstractTensorMap)
     terms = occurrences(action.graph)
     fixed = action.coloring
     state = only(t for t in terms if !haskey(fixed.tensors, label(t.object)))
@@ -24,7 +24,7 @@ function TensorGraphLab.coloring(action::PreparedAction, ψ::AbstractTensorMap)
     return Coloring(merge(fixed.tensors, (; label(state.object) => ψ)))
 end
 
-(action::PreparedAction)(ψ::AbstractTensorMap) = action.plan(coloring(action, ψ))
+(action::TransferIrrep)(ψ::AbstractTensorMap) = action.plan(coloring(action, ψ))
 
 """
     prepare_action(graph::TensorGraph, bindings; gamma, state_space, state_name=:ψ)
@@ -53,7 +53,7 @@ function prepare_action(graph::TensorGraph, c::Coloring; gamma=nothing,
     fixed = fixed_coloring(terms, state, crossings, c, gamma, state_space)
     small = [last(state.indices); [t.indices[4] for t in crossings]]
     plan = TensorGraphLab.plan_evaluation(flat; method=:planar, small_indices=small)
-    return PreparedAction(graph, fixed, plan)
+    return TransferIrrep(graph, fixed, plan)
 end
 
 function prepare_action(g::Union{TubeGraph,TensorGraph}, bindings::NamedTuple; gamma=nothing, kwargs...)
@@ -93,14 +93,23 @@ function prepare_action(tube::TubeGraph, c::Coloring, X::ElementarySpace, gamma)
     return prepare_action(tube, c; gamma, state_space=domain(W) ← X)
 end
 
-function prepare_action(tube::TubeGraph, c::Coloring, anyon::Sector)
-    BoundaryBulkKit.base_sector(anyon) === sectortype(c) ||
-        throw(ArgumentError("anyon and tube have different underlying sectors"))
-    return prepare_action(tube, c, BoundaryBulkKit.forget(anyon), V -> BoundaryBulkKit.HalfBraiding(anyon,V))
+# Plain spaces carry the unit charge line in their own scalar field.
+function transfer_charge_space(::Type{S}, a::DrinfeldCenter{I}) where {I,S<:ElementarySpace}
+    sectortype(S) === I || throw(SectorMismatch("expected a boundary space graded by $I"))
+    return BoundaryBulkKit.forget(a)
+end
+transfer_charge_space(::Type{S}, ::DrinfeldCenter{Trivial}) where {S<:Union{CartesianSpace,ComplexSpace}} =
+    oneunit(S)
+
+function prepare_action(tube::TubeGraph, c::Coloring{I}, anyon::DrinfeldCenter{I}) where {I<:Sector}
+    S = spacetype(space(tube, c))
+    X = transfer_charge_space(S, anyon)
+    gamma(V) = S <: Union{CartesianSpace,ComplexSpace} ? BraidingTensor(X, V) :
+        BoundaryBulkKit.HalfBraiding(anyon, V)
+    return prepare_action(tube, c, X, gamma)
 end
 
 prepare_action(op::TransferOperator; kwargs...) = prepare_action(op.tube, op.coloring; kwargs...)
-prepare_action(op::TransferOperator, anyon::Sector) = prepare_action(op.tube, op.coloring, anyon)
 prepare_action(op::TransferOperator, X::ElementarySpace, gamma) = prepare_action(op.tube, op.coloring, X, gamma)
 
 # Compatibility with the original direct-evaluation API.

@@ -221,13 +221,14 @@ type, and numbers of physical output and input legs. For example,
 The boundary spaces in `space(op)` come from the colored tube.
 `lattice_geometry(op)` forwards to the reference geometry of its graph and
 requires the same unit-square gluing assumptions as `lattice_geometry(G)`.
-For a Drinfeld-center sector `a`, prepare its action once and supply a state
-`ψ : forget(a) → domain(op)` on each application:
+For a central state `U` with the physical codomain of the operator, prepare
+the action once. `prepare_action(op, U)` returns a `TensorLatticeLab.TransferRepresentation`
+with one `TransferIrrep` per occupied bulk sector. Applying it returns a
+`CentralTensorMap` in the same space, reusing each sector action across its columns.
 
 ```julia
-apply = prepare_action(op, a)
-showgraph(apply.graph)
-next_state = apply(ψ)
+apply = prepare_action(op, U)
+next_state = apply(U)
 ```
 
 For the same action starting from a graph, pass its fixed lattice colors and
@@ -246,8 +247,9 @@ You can also pass a concrete half-braiding, a tuple in annular order or a
 dictionary keyed by space. For example, `prepare_action(G, (; A, B, gamma=(h1,h2)))`
 prepares a graph with two crossings. A tube plus its coloring is also accepted
 directly as `prepare_action(op.tube, op.coloring, a)`.
-The field `apply.coloring` contains the fixed named bindings. Each call adds
-the current state and passes the completed coloring to `apply.plan`.
+This graph-level call returns a `TensorLatticeLab.TransferIrrep`.
+Its `coloring` holds the fixed bindings for the chosen charge line. Each call
+adds the current state and passes the completed coloring to its `EvaluationPlan`.
 
 The action implements the left partial trace in
 [Eq. (29)](https://arxiv.org/pdf/2610.08787#page=17). Every crossing is

@@ -24,6 +24,10 @@ struct TransferOperator{E<:Number,S<:ElementarySpace,M,N,T<:TubeGraph,C<:Colorin
     end
 end
 
+# Expose the coloring's sector for dispatch without duplicating it in the operator.
+const SectorTransferOperator{I<:Sector} =
+    TransferOperator{E,S,M,N,T,C} where {E<:Number,S<:ElementarySpace,M,N,T<:TubeGraph,C<:Coloring{I}}
+
 TensorKit.space(op::TransferOperator) = space(op.tube, op.coloring)
 TensorKit.space(op::TransferOperator, i::Int) = space(op)[i]
 TensorKit.domain(op::TransferOperator) = domain(space(op))
