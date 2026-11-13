@@ -64,9 +64,10 @@ import Random
     @test !hasproperty(config, :sectors)
     F = BoundaryBulkKit.take_center(FibonacciAnyon)
     wrong = unit(F)
-    @test !applicable(prepare_action, op.tube, op.coloring, wrong)
-    @test !applicable(prepare_action, op, wrong)
-    @test !applicable(prepare_action, op, Vect[F](wrong=>1))
+    @test !applicable(anyon_insertion_irrep(wrong), op)
+    @test !applicable(anyon_insertion_irrep, wrong, op)
+    @test !applicable(anyon_insertion_rep(Vect[F](wrong=>1)), op)
+    @test !applicable(anyon_insertion_rep, Vect[F](wrong=>1), op)
     @test_throws MethodError eigsolve(op, Vect[F](wrong=>1), config)
     for cfg in (TransferMatrixConfig(), config, largest_real)
         for mode in (:full, :compact)
@@ -96,7 +97,7 @@ import Random
     @test !applicable(rightstate, result, wrong, 1)
     @test_throws ArgumentError rightstate(result,charge,1)
     ψ = rightstate(result,charge,2)
-    @test prepare_action(op, charge)(ψ) ≈ block(result.D,charge).diag[2] * ψ
+    @test anyon_insertion_irrep(charge, op)(ψ) ≈ block(result.D,charge).diag[2] * ψ
 
     mixed = Vect[C](trivial => 3, charge => 2)
     prefix = eigsolve(op, mixed, config; rightstates=2)
@@ -106,7 +107,7 @@ import Random
     @test selected.retained_indices == Dict(trivial => [1, 3], charge => [2])
     for (sector, j) in ((trivial, 1), (trivial, 3), (charge, 2))
         ψ = rightstate(selected, sector, j)
-        @test prepare_action(op, sector)(ψ) ≈ block(selected.D, sector).diag[j] * ψ
+        @test anyon_insertion_irrep(sector, op)(ψ) ≈ block(selected.D, sector).diag[j] * ψ
     end
     for invalid in (-1, true, :none, Dict(charge => [3]), Dict(wrong => [1]), Dict(C(2, 0) => [1]))
         @test_throws ArgumentError eigsolve(op, levels, config; rightstates=invalid)

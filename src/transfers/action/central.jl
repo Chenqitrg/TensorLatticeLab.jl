@@ -1,58 +1,53 @@
-"""Direct sum of sector actions on a central tensor map, with one TransferIrrep per occupied bulk sector."""
-struct TransferRepresentation{S<:CentralTensorMapSpace,P,T}
+"""Direct sum of the insertion irreps on a central tensor map space."""
+struct TransferRepresentation{T<:Number,I<:Sector,C<:DrinfeldCenter{I},S<:CentralTensorMapSpace{I,C}}
     space::S
-    plans::P
-    scalar::Type{T}
+    irreps::Dict{C,TransferIrrep{I}}
+end
+TensorKit.scalartype(::Type{<:TransferRepresentation{T}}) where {T} = T
+
+"""
+    anyon_insertion_rep(V, op)
+    anyon_insertion_rep(V)(op)(U)
+
+Fix a center-graded bulk leg, then prepare one irrep per occupied sector of
+the transfer operator's central state space. Apply the representation to `U`.
+"""
+function anyon_insertion_rep(V::GradedSpace{C}, op::SectorTransferOperator{I}) where {I<:Sector,C<:DrinfeldCenter{I}}
+    plan = AnyonInsertionPlan(op)
+    return TransferRepresentation(CentralTensorMapSpace(plan.boundary, V), plan)
+end
+anyon_insertion_rep(V::GradedSpace{C}) where {I<:Sector,C<:DrinfeldCenter{I}} =
+    (op::SectorTransferOperator{I}) -> anyon_insertion_rep(V, op)
+
+function TransferRepresentation(S::CentralTensorMapSpace{I,C}, plan::AnyonInsertionPlan{I}) where {I<:Sector,C<:DrinfeldCenter{I}}
+    codomain(S) == plan.boundary || throw(SpaceMismatch("incompatible central state boundary"))
+    irreps = Dict{C,TransferIrrep{I}}(a => TransferIrrep(a, plan) for a in blocksectors(S))
+    T = promote_type(map(scalartype, values(plan.lattice.tensors))...)
+    for irrep in values(irreps), h in get(irrep.coloring.tensors, :gamma, ())
+        T = promote_type(T, scalartype(h))
+    end
+    return TransferRepresentation{T,I,C,typeof(S)}(S, irreps)
 end
 
-# B distinguishes physical leg spaces even when they share a sector (e.g. ℝ and ℂ).
-const CentralSpaceOn{B} = CentralTensorMapSpace{I,C,N,<:ProductSpace{B}} where {I<:Sector,C<:DrinfeldCenter{I},N}
+# Preserve the full bulk product space (including zero or several bulk legs).
+function (op::SectorTransferOperator{I})(U::CentralTensorMap{T,A,S}) where {I<:Sector,T,A,S<:CentralTensorMapSpace{I}}
+    return TransferRepresentation(space(U), AnyonInsertionPlan(op))(U)
+end
 
-function prepare_action(op::TransferOperator{E,B}, S::CentralSpaceOn{B}) where {E,B}
-    codomain(S) == domain(op) || throw(SpaceMismatch("central state has the wrong physical legs"))
-    plans = Dict(a => (prepare_action(op.tube, op.coloring, a),
-                       domain(op) ← transfer_charge_space(spacetype(op), a)) for a in blocksectors(S))
-    # A half-braiding can be complex even when the lattice gates are real.
-    T = scalartype(op)
-    for (irrep, _) in values(plans)
-        for h in get(irrep.coloring.tensors, :gamma, ())
-            T = promote_type(T, scalartype(h))
+function (rep::TransferRepresentation{T,I,C})(U::CentralTensorMap{E,A,S}) where {T,I,C,E,A,S<:CentralTensorMapSpace{I,C}}
+    space(U) == rep.space || throw(SpaceMismatch("central state differs from the representation space"))
+    if length(rep.irreps) == 1
+        a, irrep = only(rep.irreps)
+        if size(block(U,a), 2) == 1
+            ψ = TensorMap{E}(U.data, irrep.space)
+            return CentralTensorMap(irrep(ψ).data, rep.space)
         end
     end
-    return TransferRepresentation(S, plans, T)
-end
-prepare_action(op::SectorTransferOperator{I}, V::GradedSpace{C}) where {I<:Sector,C<:DrinfeldCenter{I}} =
-    prepare_action(op, CentralTensorMapSpace(domain(op), V))
-prepare_action(op::SectorTransferOperator{I}, a::C) where {I<:Sector,C<:DrinfeldCenter{I}} =
-    prepare_action(op, Vect[C](a=>1))
-# B is the elementary space of the central map's physical output legs.
-const CentralMapOn{B} = CentralTensorMap{T,A,S} where {T,A,S<:CentralSpaceOn{B}}
-
-prepare_action(op::TransferOperator{E,B}, U::CentralMapOn{B}) where {E,B} = prepare_action(op, space(U))
-(op::TransferOperator{E,B})(U::CentralMapOn{B}) where {E,B} = prepare_action(op, U)(U)
-
-# Retain the boundary-state entry point for a prepared single-sector contraction.
-function (action::TransferRepresentation)(ψ::AbstractTensorMap)
-    irrep, W = only(values(action.plans))
-    space(ψ) == W || throw(SpaceMismatch("incompatible boundary state"))
-    return irrep(ψ)
-end
-
-function (action::TransferRepresentation)(U::CentralTensorMap)
-    space(U) == action.space || throw(SpaceMismatch("central state differs from the prepared space"))
-    if length(action.plans) == 1
-        a, (irrep, W) = only(action.plans)
-        if size(block(U,a),2) == 1
-            ψ = TensorMap{eltype(U)}(U.data, W)
-            return CentralTensorMap(irrep(ψ).data, action.space)
-        end
-    end
-    result = CentralTensorMap{promote_type(eltype(U), action.scalar)}(undef, action.space)
-    for a in blocksectors(U)
-        irrep, W = action.plans[a]
+    result = CentralTensorMap{promote_type(E,T)}(undef, rep.space)
+    for (a, irrep) in rep.irreps
         input, output = block(U,a), block(result,a)
         for j in axes(input,2)
-            ψ = TensorMap{eltype(U)}(input[:,j], W)
+            ψ = TensorMap{E}(input[:,j], irrep.space)
             output[:,j] .= irrep(ψ).data
         end
     end

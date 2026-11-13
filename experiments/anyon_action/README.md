@@ -1,6 +1,6 @@
 # Anyon insertion on a marked tube
 
-Run `run.jl` to check the public `prepare_action` against small independent
+Run `run.jl` to check the public `anyon_insertion_irrep` against small independent
 planar contractions, including the Z3 and Fibonacci center sectors. The reference actions use alternating local gates and explicit
 left or right translations at the physical seam. They cover all eight named
 transfers and two six-leg geometries. The small states have at most 86 complex

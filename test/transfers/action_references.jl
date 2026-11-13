@@ -102,7 +102,7 @@ end
 function check_reference(name::String, tube::TubeGraph, A::AbstractTensorMap, B::AbstractTensorMap,
                          ψ::AbstractTensorMap, anyon::Sector, expected::AbstractTensorMap)
     op = TransferOperator(tube, checkerboard_coloring(tube, (A, B)))
-    actual = prepare_action(op, anyon)(ψ)
+    actual = anyon_insertion_irrep(anyon, op)(ψ)
     @testset "$name, $anyon" begin
         @test space(actual) == space(expected)
         @test norm(expected) > 0
@@ -112,7 +112,7 @@ function check_reference(name::String, tube::TubeGraph, A::AbstractTensorMap, B:
         if anyon isa BoundaryBulkKit.Z3QuantumDouble && anyon.charge == 1 && anyon.flux == 1
             # Negating the flux conjugates the crossing phases without changing X.
             reverse_flux = typeof(anyon)(anyon.charge, -anyon.flux)
-            wrong = prepare_action(op, reverse_flux)(ψ)
+            wrong = anyon_insertion_irrep(reverse_flux, op)(ψ)
             reverse_residual = norm(wrong - expected) / norm(expected)
             @test reverse_residual > 1e-3
             @debug "Reversed crossing phase residual" name reverse_residual

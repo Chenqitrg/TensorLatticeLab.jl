@@ -20,8 +20,9 @@ function KrylovKit.eigsolve(op::SectorTransferOperator{I}, levels::GradedSpace{C
     end
 
     rng = Random.Xoshiro(cfg.seed)
+    plan = AnyonInsertionPlan(op)
     sector_results = map(requested) do (sector, count)
-        result = solve_sector(op, sector, count, indices[sector], cfg, options, rng)
+        result = solve_sector(plan, sector, count, indices[sector], cfg, options, rng)
         return sector => result
     end
     results = Dict(sector_results)
@@ -69,13 +70,13 @@ function krylov_dimension(dimension::Int, count::Int, requested::Union{Int,Nothi
     return basis_size
 end
 
-function solve_sector(op::SectorTransferOperator{I}, sector::C, count::Int, retained::Vector{Int},
-                      cfg::TransferMatrixConfig, options, rng) where {I<:Sector,C<:DrinfeldCenter{I}}
-    space = CentralTensorMapSpace(domain(op), Vect[C](sector => 1))
+function solve_sector(plan::AnyonInsertionPlan{I}, sector::C, count::Int, retained::Vector{Int},
+                      cfg::TransferMatrixConfig, options::NamedTuple, rng::Random.AbstractRNG) where {I<:Sector,C<:DrinfeldCenter{I}}
+    space = CentralTensorMapSpace(plan.boundary, Vect[C](sector => 1))
     basis_size = krylov_dimension(dim(space), count, cfg.solver.krylovdim)
-    action = prepare_action(op, space)
-    scalar = float(promote_type(scalartype(op), action.scalar))
-    state_type = spacetype(op) === CartesianSpace ? scalar : complex(scalar)
+    action = TransferRepresentation(space, plan)
+    scalar = float(scalartype(action))
+    state_type = spacetype(plan.boundary) === CartesianSpace ? scalar : complex(scalar)
     initial_state = CentralTensorMap(randn(rng, state_type, dim(space)), space)
 
     if isempty(retained) && cfg.which === :LM && isempty(cfg.solver.kwargs)

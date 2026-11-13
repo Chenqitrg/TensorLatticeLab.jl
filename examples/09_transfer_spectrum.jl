@@ -24,6 +24,6 @@ let
     λ = block(spec.D, charge).diag
     ψ = rightstate(spec, charge, 2)
     @assert length(λ) == 2
-    @assert prepare_action(op, charge)(ψ) ≈ λ[2] * ψ
+    @assert anyon_insertion_irrep(charge, op)(ψ) ≈ λ[2] * ψ
     println("Leading transfer eigenvalues: ", λ)
 end

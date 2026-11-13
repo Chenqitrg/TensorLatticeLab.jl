@@ -220,35 +220,21 @@ type, and numbers of physical output and input legs. For example,
 The boundary spaces in `space(op)` come from the colored tube.
 `lattice_geometry(op)` forwards to the reference geometry of its graph and
 requires the same unit-square gluing assumptions as `lattice_geometry(G)`.
-For a central state `U` with the physical codomain of the operator, prepare
-the action once. `prepare_action(op, U)` returns a `TensorLatticeLab.TransferRepresentation`
-with one `TransferIrrep` per occupied bulk sector. Applying it returns a
-`CentralTensorMap` in the same space, reusing each sector action across its columns.
+The operator supplies the lattice coloring. Fix the center sector `a` or bulk
+leg `V`, supply the operator, then apply the result to the current state.
 
 ```julia
-apply = prepare_action(op, U)
-next_state = apply(U)
+ψnext = anyon_insertion_irrep(a)(op)(ψ)   # boundary TensorMap
+Unext = anyon_insertion_rep(V)(op)(U)     # CentralTensorMap with bulk leg V
 ```
 
-For the same action starting from a graph, pass its fixed lattice colors and
-the positive half-braiding. The callable is evaluated once per distinct
-oriented annular space during preparation.
+To reuse the prepared action, keep `irrep = anyon_insertion_irrep(a, op)`
+or `rep = anyon_insertion_rep(V, op)` and call it on successive states.
 
-```julia
-G = action_graph(op.tube)
-gamma(V) = BoundaryBulkKit.HalfBraiding(a, V)
-apply = prepare_action(G, op.coloring; gamma)
-next_state = apply(ψ)
-bindings = coloring(apply, ψ)
-```
-
-You can also pass a concrete half-braiding, a tuple in annular order or a
-dictionary keyed by space. For example, `prepare_action(G, (; A, B, gamma=(h1,h2)))`
-prepares a graph with two crossings. A tube plus its coloring is also accepted
-directly as `prepare_action(op.tube, op.coloring, a)`.
-This graph-level call returns a `TensorLatticeLab.TransferIrrep`.
-Its `coloring` holds the fixed bindings for the chosen charge line. Each call
-adds the current state and passes the completed coloring to its `EvaluationPlan`.
+For a lattice coloring with sector type `I`, the anyon has type
+`C <: DrinfeldCenter{I}` and the bulk leg has type `GradedSpace{C}`.
+The representation reuses one contraction plan for its occupied sectors and
+one irrep across all columns of each sector.
 
 The action implements the left partial trace in
 [Eq. (29)](https://arxiv.org/pdf/2610.08787#page=17). Every crossing is

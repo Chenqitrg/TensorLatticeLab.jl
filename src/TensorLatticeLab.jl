@@ -27,8 +27,8 @@ include("cells/cdl.jl")
 include("cells/show.jl")
 
 # Graph families and commonly used small transfers.
-export TransferOperator, checkerboard_coloring, action_graph, prepare_action
-export action_coloring # Compatibility with the original action API.
+export TransferOperator, checkerboard_coloring, action_graph
+export anyon_insertion_irrep, anyon_insertion_rep
 export row_graph, diagonal_graph
 export diagonal_2, shifted_row_2, double_row_2, diagonal_4
 export row_4, shifted_row_4, shifted_row_8

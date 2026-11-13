@@ -9,7 +9,7 @@ Annular legs are paired within the tube. Tensor data is borrowed.
 
 Construction validates all bindings and ordered boundary spaces without
 contracting or transforming tensor data. Equal dimensions alone are insufficient.
-Use `prepare_action(op, anyon)` to obtain the callable map in a center sector.
+Use `anyon_insertion_irrep(anyon, op)` to obtain the callable map in a center sector.
 """
 struct TransferOperator{E<:Number,S<:ElementarySpace,M,N,T<:TubeGraph,C<:Coloring}
     tube::T

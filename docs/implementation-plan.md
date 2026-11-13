@@ -32,6 +32,6 @@ coloring, before geometry fitting, center insertion and spectrum extraction.
 
 ## Anyon insertion
 
-`prepare_action(op, anyon)` contracts the tube's marked annular pairs against
+`anyon_insertion_irrep(anyon, op)` contracts the tube's marked annular pairs against
 the sector state. Tests compare composition and dagger with independently
 evaluated actions in the Z3 and Fibonacci doubles. The ED layer in `src/ED/` reuses this action with KrylovKit and an ExperimentLab configuration.

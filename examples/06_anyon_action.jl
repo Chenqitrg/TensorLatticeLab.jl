@@ -11,14 +11,13 @@ let
     X = BoundaryBulkKit.forget(anyon)
     ψ = randn(ComplexF64, domain(op) ← X)
 
-    G = action_graph(tube)
-    showgraph(G)
-    gamma(W::ElementarySpace) = BoundaryBulkKit.HalfBraiding(anyon, W)
-    prepared = prepare_action(G, op.coloring; gamma)
-    result = prepared(ψ)
-    @assert result ≈ evaluate(G, coloring(prepared, ψ); method=:planar, opt=true)
+    irrep = anyon_insertion_irrep(anyon)(op)
+    showgraph(irrep.graph)
+    result = irrep(ψ)
 
-    apply = prepare_action(op, anyon)
-    @assert apply(ψ) ≈ result
+    C = typeof(anyon)
+    U = BoundaryBulkKit.CentralTensorMap(copy(ψ.data), domain(op), Vect[C](anyon => 1))
+    rep = anyon_insertion_rep(only(domain(U)))(op)
+    @assert rep(U).data ≈ result.data
     println("Output state norm: ", norm(result))
 end

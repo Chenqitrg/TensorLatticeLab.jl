@@ -6,17 +6,9 @@ import BoundaryBulkKit
     X = ℂ^1
     A = randn(ComplexF64, V ⊗ V ← V ⊗ V)
     B = randn(ComplexF64, V ⊗ V ← V ⊗ V)
-    calls = Ref(0)
-    halfbraiding = W -> begin
-        calls[] += 1
-        copy(BraidingTensor(X, W))
-    end
     g = diagonal_4()
     op = TransferOperator(g, checkerboard_coloring(g, (A, B)))
-    action = prepare_action(op, X, halfbraiding)
-    @test fieldnames(typeof(action)) == (:graph, :coloring, :plan)
-    prepared_calls = calls[]
-    @test prepared_calls == 2  # V and its dual cross the diagonal seam.
+    action = anyon_insertion_irrep(one(BoundaryBulkKit.take_center(Trivial)), op)
     ψ = randn(ComplexF64, domain(op) ← X)
     @tensor expected[o1 o2 o3 o4; x] :=
         (((ψ[p1 p2 p3 p4; x] * B[i1 i2; p1 p2]) *
@@ -24,25 +16,23 @@ import BoundaryBulkKit
     G = action_graph(g, TensorNode(:ψ, ψ))
     @test isplanar(G)
     @test count("gamma", sprint(showgraph, G)) == length(g.annular)
-    @test G == action.graph
-    c = coloring(action, ψ)
+    c = TensorGraphLab.Coloring(merge(action.coloring.tensors, (; ψ)))
     @test evaluate(G, c; method=:planar, small_indices=(:x0,:x1,:x2)) ≈ expected
     @test action(ψ) ≈ expected
     @test action(2ψ) ≈ 2expected
-    @test calls[] == prepared_calls
     @test_throws SpaceMismatch action(randn(ComplexF64, V ⊗ V ← X))
-    @test_throws SpaceMismatch prepare_action(op, X, W -> id(W ⊗ X))
+    @test_throws SpaceMismatch action(randn(ComplexF64, domain(op) ← V))
 end
 
 @testset "Graph families and arbitrary local rank" begin
     V, X = ℂ^1, ℂ^1
     a = ones(ComplexF64, V ⊗ V ← V ⊗ V)
-    gamma = W -> copy(BraidingTensor(X, W))
+    anyon = one(BoundaryBulkKit.take_center(Trivial))
     for graph in (diagonal_2(), diagonal_4(), shifted_row_2(), double_row_2(),
                   row_4(), shifted_row_4(), shifted_row_8(), TensorLatticeLab.tilted_4(),
                   row_graph(6; layers=3, shift=-1), diagonal_graph(6; shift=2))
         op = TransferOperator(graph, checkerboard_coloring(graph, (a, a)))
-        action = prepare_action(op, X, gamma)
+        action = anyon_insertion_irrep(anyon, op)
         ψ = ones(ComplexF64, domain(op) ← X)
         @test action(ψ) ≈ ψ
     end
@@ -52,7 +42,7 @@ end
     @tube annular=() graph[o1 o2 o3; i1 i2 i3] := A[o1 o2 o3; i1 i2 i3]
     op = TransferOperator(graph, coloring(graph, A => a))
     ψ = randn(ComplexF64, domain(op) ← X)
-    @test prepare_action(op, X, gamma)(ψ) ≈ a * ψ
+    @test anyon_insertion_irrep(anyon, op)(ψ) ≈ a * ψ
 end
 
 # An independent planar brickwork action: move the first output to the end,
@@ -90,10 +80,10 @@ end
             X = BoundaryBulkKit.forget(anyon)
             ψ = randn(ComplexF64, domain(op) ← X)
             φ = randn(ComplexF64, domain(op) ← X)
-            action = prepare_action(op, anyon)
+            action = anyon_insertion_irrep(anyon, op)
             @test action(ψ) ≈ reference_diagonal_action(A, B, ψ, anyon)
-            @test prepare_action(squareop, anyon)(ψ) ≈ action(action(ψ))
-            @test dot(φ, action(ψ)) ≈ dot(prepare_action(adjop, anyon)(φ), ψ)
+            @test anyon_insertion_irrep(anyon, squareop)(ψ) ≈ action(action(ψ))
+            @test dot(φ, action(ψ)) ≈ dot(anyon_insertion_irrep(anyon, adjop)(φ), ψ)
         end
     end
 end
@@ -106,14 +96,9 @@ end
     @tube annular=(s,t) tube[o;i] := B[t o; m t] * A[s m; i s]
     op = TransferOperator(tube, coloring(tube, A=>a, B=>b))
     ψ = randn(ComplexF64, U ← X)
-    observed = Set{ComplexSpace}()
-    function gamma(Y::ElementarySpace)
-        push!(observed, Y)
-        return copy(BraidingTensor(X, Y))
-    end
-    action = prepare_action(op, X, gamma)
-    @test observed == Set((V,W))
-    hv, hw = gamma(V)', gamma(W)'
+    anyon = one(BoundaryBulkKit.take_center(Trivial))
+    action = anyon_insertion_irrep(anyon, op)
+    hv, hw = BraidingTensor(X,V)', BraidingTensor(X,W)'
     @planar intermediate[o;x] := (a[v o; i w] * ψ[i;y]) * hv[y w;v x]
     @planar expected[o;x] := (b[v o; i w] * intermediate[i;y]) * hw[y w;v x]
     @test action(ψ) ≈ expected
@@ -121,47 +106,35 @@ end
 
 include("action_references.jl")
 
-@testset "Prepare from an action graph, marked tube or transfer operator" begin
-    V, X = ℂ^2, ℂ^1
+@testset "Curried transfer operator insertion" begin
+    V = ℂ^2
     a = randn(ComplexF64, V ⊗ V ← V ⊗ V)
     b = randn(ComplexF64, V ⊗ V ← V ⊗ V)
     tube = diagonal_2()
     lattice = checkerboard_coloring(tube, (a,b))
     op = TransferOperator(tube, lattice)
-    ψ = randn(ComplexF64, domain(op) ← X)
-    G = action_graph(tube; state_name=:state)
-    gamma(W::ElementarySpace) = copy(BraidingTensor(X,W))
-    by_space = Dict(W => gamma(W) for W in (V, dual(V)))
-    reference = prepare_action(op, X, gamma)(ψ)
-    direct = prepare_action(G, lattice; gamma=by_space, state_name=:state)
-    @test direct.coloring[:A] === lattice[:A]
-    @test direct.coloring[:B] === lattice[:B]
-    @test Set(keys(direct.coloring.tensors)) == Set((:A,:B,:gamma))
-    @test prepare_action(tube, lattice; gamma)(ψ) ≈ reference
-    @test prepare_action(op; gamma)(ψ) ≈ reference
-    @test direct(ψ) ≈ reference
-    @test direct(2ψ) ≈ 2reference
-    @test_throws SpaceMismatch coloring(direct, randn(ComplexF64, domain(op) ← V))
-    completed = coloring(direct, ψ)
-    @test completed[:state] === ψ
-    @test evaluate(G, completed; method=:planar, opt=true) ≈ direct(ψ)
-    @test prepare_action(G, completed; state_name=:state)(2ψ) ≈ 2reference
-    @test prepare_action(G, (; A=a, B=b, gamma); state_name=:state)(ψ) ≈ reference
-    @test prepare_action(tube, (; A=a, B=b, gamma=by_space))(ψ) ≈ reference
-    @test prepare_action(G, (; A=a, B=b, gamma=direct.coloring[:gamma]); state_name=:state)(ψ) ≈ reference
-    @test prepare_action(tube, lattice, X, gamma)(ψ) ≈ reference
-    @test_throws SpaceMismatch prepare_action(G, completed; state_name=:state, state_space=V ← X)
-    @test_throws ArgumentError prepare_action(G, lattice; gamma=(gamma(V),), state_name=:state)
-
-    # A compiled plan resolves the state by its color even if it occurs first.
-    terms = TensorGraphLab.occurrences(G)
-    reordered = TensorGraph((terms[end], terms[1:end-1]...), TensorGraphLab.boundary(G)...)
-    @test prepare_action(reordered, completed; state_name=:state)(ψ) ≈ reference
-
-    tube = row_4()
-    lattice = checkerboard_coloring(tube, (a,b))
-    four_legs = randn(ComplexF64, domain(space(tube,lattice)) ← X)
-    h = gamma(V)
-    @test prepare_action(action_graph(tube), lattice; gamma=h)(four_legs) ≈
-          prepare_action(tube, lattice, X, gamma)(four_legs)
+    G = action_graph(tube)
+    C = BoundaryBulkKit.take_center(Trivial)
+    charge = one(C)
+    irrep = anyon_insertion_irrep(charge, op)
+    ψ = randn(ComplexF64, irrep.space)
+    bindings = TensorGraphLab.Coloring(merge(irrep.coloring.tensors, (; ψ)))
+    @test irrep.graph == G
+    reference = evaluate(irrep.graph, bindings; method=:planar, opt=true)
+    @test irrep(ψ) ≈ reference
+    @test anyon_insertion_irrep(charge)(op)(ψ) ≈ reference
+    @test !applicable(anyon_insertion_irrep(charge), G, lattice)
+    @test irrep.coloring[:A] === lattice[:A]
+    @test irrep.coloring[:B] === lattice[:B]
+    bulk = Vect[C](charge => 2)
+    rep = anyon_insertion_rep(bulk, op)
+    U = BoundaryBulkKit.CentralTensorMap(vcat(ψ.data, 2ψ.data), codomain(ψ), bulk)
+    expected = vcat(reference.data, 2reference.data)
+    @test rep(U).data ≈ expected
+    @test anyon_insertion_rep(bulk)(op)(U).data ≈ expected
+    @test !applicable(anyon_insertion_rep(bulk), G, lattice)
+    @test_throws SpaceMismatch rep(BoundaryBulkKit.CentralTensorMap(copy(ψ.data), codomain(ψ), Vect[C](charge=>1)))
+    empty_rep = anyon_insertion_rep(Vect[C](), op)
+    empty_state = zeros(ComplexF64, empty_rep.space)
+    @test empty_rep(empty_state) ≈ empty_state
 end
