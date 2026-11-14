@@ -246,14 +246,15 @@ See [the bounded example](examples/06_anyon_action.jl) for direct graph evaluati
 
 ## Diagonalize a transfer operator
 
-Use the transfer operator, requested center space and solver configuration together.
+Set sector quotas, eigenvalue order and right-state selection in the solver configuration.
 
 ```julia
 C = BoundaryBulkKit.take_center(sectortype(op))
 levels = Vect[C](one(C)=>1, a=>3)
-cfg = TransferMatrixConfig(which=:LM,
+cfg = TransferMatrixConfig(trunc=truncspace(levels; by=abs, rev=true),
+    rightstates=Dict(one(C) => [1], a => [2, 3]),
     solver=TransferArnoldi(tol=1e-10, kwargs=(; eager=true)))
-spec = eigsolve(op, levels, cfg; rightstates=Dict(one(C) => [1], a => [2, 3]))
+spec = eigsolve(op, cfg)
 λ = block(spec.D, a).diag
 ψ = rightstate(spec, a, 2)
 ```
@@ -262,16 +263,17 @@ Here `a` is a nontrivial sector of `C`. Its multiplicity requests three leading
 eigenvalues by magnitude. A zero or omitted multiplicity skips the sector,
 including the trivial sector. Use `Vect[C](one(C)=>1)` to request only its
 leading eigenvalue, or `Vect[C]()` to skip all solves.
-Choose right eigenvectors with the optional `rightstates` keyword:
+Choose right eigenvectors with the configuration field `rightstates`:
 
 | Selection | Retained right eigenvectors |
 | --- | --- |
 | `0` (default) | None. Eigenvalues and convergence reports are returned. |
-| `:all` | Every requested level in every sector. |
-| `N` | Levels 1 through `min(N, dim(levels, a))` in each requested sector. |
+| `:all` | Every computed level in every sector. |
+| `N` | Levels 1 through `min(N, number_computed)` in each requested sector. |
 | `Dict(a => [2, 3], b => [1])` | Levels 2 and 3 in sector `a` and level 1 in sector `b`. Other sectors retain none. |
 
-Explicit indices must lie within the requested levels in their sector. The
+Each quota is capped at the available dimension of its central tensor map space.
+Explicit indices must lie within the computed levels in their sector. The
 dictionary uses the original one-based eigenvalue order, as does `rightstate`.
 In the example, `rightstate(spec, a, 2)` reads column 1 of `block(spec.U, a)`.
 When right states are retained, `U` is a `CentralTensorMap` with one bulk leg
@@ -279,13 +281,14 @@ in the requested orientation. Its boundary sector is `I = sectortype(op)` and
 its center sector type is `C <: DrinfeldCenter{I}`. The default largest-magnitude
 solve uses the Schur route when no extra KrylovKit keywords are supplied.
 Single-start Arnoldi can miss multiplicities of exactly degenerate eigenvalues.
-Infeasible counts and insufficient convergence raise errors.
+Insufficient convergence raises an error.
 
 Use `ExperimentLab.configtree(cfg)` to inspect the configuration and `@config`
 to construct it as a tree. `ExperimentLab.writeconfig(path, cfg)` saves the
-solver settings and the random seed. Restore them
-with `ExperimentLab.readconfig(path, TransferMatrixConfig)` and pass the
-desired sector space and right-state selection to each call to `eigsolve`.
+sector quotas, eigenvalue order, right-state selection, solver settings and random seed.
+Pass `ExperimentLab.readconfig(path, TransferMatrixConfig)` directly to `eigsolve`.
+JSON supports the ordering keys `abs`, `abs2`, `real`, `imag` and `identity`.
+For an additional center type, read with the concrete configuration type.
 
 ## Memory and examples
 

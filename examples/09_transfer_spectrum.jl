@@ -16,11 +16,13 @@ let
 
     cfg = @config """
     TransferMatrixConfig
+    ├─ trunc: truncspace(levels; by=abs, rev=true)
+    ├─ rightstates: Dict(one(C) => [1], charge => [2])
     └─ solver: TransferArnoldi
        └─ tol: 1.0e-10
     """
     println(ExperimentLab.configtree(cfg))
-    spec = eigsolve(op, levels, cfg; rightstates=Dict(one(C) => [1], charge => [2]))
+    spec = eigsolve(op, cfg)
     λ = block(spec.D, charge).diag
     ψ = rightstate(spec, charge, 2)
     @assert length(λ) == 2

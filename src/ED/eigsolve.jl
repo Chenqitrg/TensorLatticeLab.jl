@@ -1,60 +1,51 @@
 """
-    eigsolve(op, levels, cfg::TransferMatrixConfig; rightstates=0)
+    eigsolve(op, cfg::TransferMatrixConfig)
 
-Request `dim(levels, a)` eigenvalues in center sector `a`. Select the right
-eigenvectors to retain with `:all`, a nonnegative count (the first N per
-sector), or a dictionary such as `Dict(a => [1, 3], b => [2])`. An omitted
-dictionary key retains no states in that sector. Indices start at one and
-follow the eigenvalue order selected by `cfg.which`.
-Zero or omitted multiplicities skip the sector, including the trivial sector.
-An empty request returns an empty spectrum without running a Krylov solve.
+Solve each sector up to its multiplicity in `cfg.trunc.space` and its available
+boundary dimension. Zero or omitted sectors are skipped. Eigenvalues follow
+`cfg.trunc.by` and `cfg.trunc.rev`. Set `cfg.rightstates` to `:all`, a prefix
+length, or a dictionary of one-based level indices per sector to retain.
 """
-function KrylovKit.eigsolve(op::SectorTransferOperator{I}, levels::GradedSpace{C},
-                            cfg::TransferMatrixConfig; rightstates=0) where {I<:Sector,C<:DrinfeldCenter{I}}
-    options = solver_options(cfg, scalartype(op))
-    requested = collect(TensorKit.blockdims(levels))
-    indices = retained_levels(levels, rightstates)
-    if isempty(requested)
+function KrylovKit.eigsolve(op::SectorTransferOperator{I}, cfg::TransferMatrixConfig{C}) where {I<:Sector,C<:DrinfeldCenter{I}}
+    tolerance = krylov_tolerance(cfg.solver, scalartype(op))
+    quotas = cfg.trunc.space
+    boundary = domain(op)
+    spaces = Dict(a => CentralTensorMapSpace(boundary, Vect[C](a => 1)) for a in sectors(quotas))
+    levels = Vect[C](a => min(dim(quotas, a), dim(space)) for (a, space) in spaces)
+    retained = retained_levels(levels, cfg.rightstates)
+
+    if isempty(sectors(levels))
         D = DiagonalTensorMap{float(scalartype(op))}(undef, levels)
-        return TransferSpectrum(D, nothing, indices, Dict{C,KrylovKit.ConvergenceInfo}())
+        return TransferSpectrum(D, nothing, retained, Dict{C,KrylovKit.ConvergenceInfo}())
     end
 
-    rng = Random.Xoshiro(cfg.seed)
     plan = AnyonInsertionPlan(op)
-    sector_results = map(requested) do (sector, count)
-        result = solve_sector(plan, sector, count, indices[sector], cfg, options, rng)
+    rng = Random.Xoshiro(cfg.seed)
+    sector_results = map(sectors(levels)) do sector
+        action = TransferRepresentation(spaces[sector], plan)
+        count = dim(levels, sector)
+        result = solve_sector(action, count, retained[sector], cfg, rng; tolerance)
         return sector => result
     end
-    results = Dict(sector_results)
-    return pack_spectrum(op, levels, results, indices)
+    return pack_spectrum(op, levels, Dict(sector_results), retained)
 end
 
-function retained_levels(levels::GradedSpace{C}, selection::Union{Integer,Symbol}) where {C<:DrinfeldCenter}
-    if selection !== :all && !(selection isa Integer && !(selection isa Bool) && selection >= 0)
-        throw(ArgumentError("rightstates must be :all, a nonnegative count, or a sector dictionary"))
+function retained_levels(levels::GradedSpace{C}, selection::Symbol) where {C<:DrinfeldCenter}
+    selection === :all || throw(ArgumentError("the only symbolic rightstates selection is :all"))
+    return Dict{C,Vector{Int}}(a => collect(1:dim(levels, a)) for a in sectors(levels))
+end
+
+function retained_levels(levels::GradedSpace{C}, prefix::Integer) where {C<:DrinfeldCenter}
+    if prefix isa Bool || prefix < 0
+        throw(ArgumentError("rightstates must be a nonnegative level count"))
     end
-    indices = Dict{C,Vector{Int}}()
-    for (sector, count) in TensorKit.blockdims(levels)
-        last_level = selection === :all ? count : min(selection, count)
-        indices[sector] = collect(1:Int(last_level))
-    end
-    return indices
+    return Dict{C,Vector{Int}}(a => collect(1:min(prefix, dim(levels, a))) for a in sectors(levels))
 end
 
 function retained_levels(levels::GradedSpace{C}, selection::AbstractDict) where {C<:DrinfeldCenter}
-    indices = Dict{C,Vector{Int}}(sector => Int[] for sector in sectors(levels))
-    for (sector, selected) in selection
-        sector isa C && haskey(indices, sector) ||
-            throw(ArgumentError("rightstates contains an unrequested sector: $sector"))
-        selected isa AbstractVector{<:Integer} ||
-            throw(ArgumentError("expected a vector of level indices for sector $sector"))
-        count = dim(levels, sector)
-        for j in selected
-            if j isa Bool || !(1 <= j <= count)
-                throw(ArgumentError("right-state index $j outside the allowed levels 1:$count in sector $sector"))
-            end
-        end
-        indices[sector] = sort!(unique!(collect(Int, selected)))
+    indices = explicit_rightstates(levels, selection)
+    for sector in sectors(levels)
+        get!(Vector{Int}, indices, sector)
     end
     return indices
 end
@@ -70,24 +61,28 @@ function krylov_dimension(dimension::Int, count::Int, requested::Union{Int,Nothi
     return basis_size
 end
 
-function solve_sector(plan::AnyonInsertionPlan{I}, sector::C, count::Int, retained::Vector{Int},
-                      cfg::TransferMatrixConfig, options::NamedTuple, rng::Random.AbstractRNG) where {I<:Sector,C<:DrinfeldCenter{I}}
-    space = CentralTensorMapSpace(plan.boundary, Vect[C](sector => 1))
-    basis_size = krylov_dimension(dim(space), count, cfg.solver.krylovdim)
-    action = TransferRepresentation(space, plan)
-    scalar = float(scalartype(action))
-    state_type = spacetype(plan.boundary) === CartesianSpace ? scalar : complex(scalar)
+function solve_sector(action::TransferRepresentation{T,I,C}, count::Int, retained::Vector{Int},
+                      cfg::TransferMatrixConfig{C}, rng::Random.AbstractRNG;
+                      tolerance::Real) where {T,I,C}
+    space = action.space
+    scalar = float(T)
+    state_type = spacetype(codomain(space)) === CartesianSpace ? scalar : complex(scalar)
     initial_state = CentralTensorMap(randn(rng, state_type, dim(space)), space)
 
-    if isempty(retained) && cfg.which === :LM && isempty(cfg.solver.kwargs)
-        algorithm = KrylovKit.Arnoldi(; krylovdim=basis_size, options...)
-        _, _, eigenvalues, info = KrylovKit.schursolve(action, initial_state, count, :LM, algorithm)
+    solver = cfg.solver
+    which = eigenvalue_selector(cfg.trunc)
+    krylovdim = krylov_dimension(dim(space), count, solver.krylovdim)
+    options = (; krylovdim, tol=tolerance, maxiter=solver.maxiter)
+    if isempty(retained) && which === :LM && isempty(solver.kwargs)
+        algorithm = KrylovKit.Arnoldi(; options...)
+        _, _, eigenvalues, info = KrylovKit.schursolve(action, initial_state, count, which, algorithm)
         eigenvectors = nothing
     else
-        eigenvalues, eigenvectors, info = KrylovKit.eigsolve(action, initial_state, count, cfg.which;
-            krylovdim=basis_size, options..., cfg.solver.kwargs...)
+        eigenvalues, eigenvectors, info = KrylovKit.eigsolve(action, initial_state, count, which;
+                                                             options..., solver.kwargs...)
     end
     if info.converged < count
+        sector = only(blocksectors(space))
         error("KrylovKit converged $(info.converged) of $count levels in sector $sector")
     end
     rightstates = isempty(retained) ? nothing : eigenvectors[retained]

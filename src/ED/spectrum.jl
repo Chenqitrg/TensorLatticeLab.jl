@@ -58,7 +58,7 @@ function rightstate(result::TransferSpectrum{I,C}, a::C, j::Int) where {I<:Secto
 end
 
 function pack_spectrum(op::SectorTransferOperator{I}, levels::GradedSpace{C},
-                       results, indices) where {I<:Sector,C<:DrinfeldCenter{I}}
+                       results::AbstractDict{C,<:NamedTuple}, indices::Dict{C,Vector{Int}}) where {I<:Sector,C<:DrinfeldCenter{I}}
     eigenvalue_type = promote_type((eltype(result.eigenvalues) for result in values(results))...)
     D = DiagonalTensorMap{eigenvalue_type}(undef, levels)
     for (sector, result) in results
